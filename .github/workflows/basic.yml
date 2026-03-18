@@ -1,6 +1,16 @@
+name: UV basic checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
 jobs:
   build:
-    name: Basic check.
+    permissions:
+      contents: read
+
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,8 +29,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up Python
+        run: uv python install
+
       - name: Install the project
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --all-extras --dev
 
       - name: Run ruff
         run: uvx ruff check
