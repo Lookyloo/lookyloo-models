@@ -85,11 +85,18 @@ class BaseModelDump(BaseModel):
                 mapping_capture[key] = value.redis_dump()
             elif isinstance(value, BaseModel):
                 mapping_capture[key] = value.model_dump_json()
+            elif isinstance(value, set):
+                if value:
+                    mapping_capture[key] = orjson.dumps(list(value))
             elif isinstance(value, (list, dict)):
                 if value:
                     mapping_capture[key] = orjson.dumps(value)
-            elif isinstance(value, (bytes, float, int, str)) and value not in ["", b""]:
-                mapping_capture[key] = value
+            elif isinstance(value, (bytes, float, int, str)):
+                if value in ["", b""]:
+                    # Just ignore
+                    pass
+                else:
+                    mapping_capture[key] = value
             else:
                 raise UnexpectedTypeDump(f'Unexpected type "{type(value)}" for "{key}"')
         return mapping_capture
@@ -355,27 +362,6 @@ class CaptureSettings(BaseModelDump):
             return headers
         return None
 
-    def redis_dump(self) -> Mapping[str | bytes, bytes | float | int | str]:
-        mapping_capture: dict[str | bytes, bytes | float | int | str] = {}
-        for key, value in dict(self).items():
-            if value is None:
-                continue
-            if isinstance(value, bool):
-                mapping_capture[key] = 1 if value else 0
-            elif isinstance(value, BaseModel):
-                mapping_capture[key] = value.model_dump_json()
-            elif isinstance(value, (list, dict)):
-                if value:
-                    mapping_capture[key] = orjson.dumps(value)
-            elif isinstance(value, (bytes, float, int, str)) and value not in [
-                "",
-                b"",
-            ]:  # we're ok with 0 for example
-                mapping_capture[key] = value
-            else:
-                raise CaptureSettingsError(f"Unexpected type {type(value)} for {key}")
-        return mapping_capture
-
 
 class AutoReportSettings(BaseModel):
     email: str | None = None
@@ -383,8 +369,8 @@ class AutoReportSettings(BaseModel):
 
 
 class MonitorCaptureSettings(BaseModel):
-    capture_settings: LookylooCaptureSettings | None
-    frequency: str | None
+    capture_settings: LookylooCaptureSettings | None = None
+    frequency: str | None = None
     never_expire: bool = False
     expire_at: float | None = None
     collection: str | None = None
