@@ -1,7 +1,8 @@
 from .models import (
     LookylooModelsException,
-    UnexpectedTypeDump,  # noqa
+    UnexpectedTypeDump,
     CaptureSettingsError,
+    LookylooCaptureSettingsError,
     ViewportSettings,
     GeolocationSettings,
     HttpCredentialsSettings,
@@ -19,6 +20,7 @@ __all__ = [
     "LookylooModelsException",
     "UnexpectedTypeDump",
     "CaptureSettingsError",
+    "LookylooCaptureSettingsError",
     "ViewportSettings",
     "GeolocationSettings",
     "HttpCredentialsSettings",

@@ -12,12 +12,13 @@ from urllib.parse import urlparse
 import dateparser
 import orjson
 
-from pydantic import BaseModel, field_validator, model_validator, ValidationError
-from pydantic_core import from_json
-
-
-# Refang from https://bitbucket.org/johannestaas/defang/src/master/defang/__init__.py
-# to avoid the dependency.
+from pydantic import (
+    BaseModel,
+    field_validator,
+    model_validator,
+    ValidationError,
+    ValidationInfo,
+)
 
 
 def refang(line: str) -> str:
@@ -27,6 +28,8 @@ def refang(line: str) -> str:
     :param str line: the line of text to reverse the defanging of.
     :return: the "dirty" line with actual URIs
     """
+    # Refang from https://bitbucket.org/johannestaas/defang/src/master/defang/__init__.py
+    # to avoid the dependency.
     ZERO_WIDTH_CHARACTER = "​"
     if all(char == ZERO_WIDTH_CHARACTER for char in line[1::2]):
         return line[::2]
@@ -68,11 +71,51 @@ class CaptureSettingsError(LookylooModelsException):
         self.pydantic_validation_errors = pydantic_validation_errors
 
 
+class CookieError(LookylooModelsException):
+    """Can handle Pydantic validation errors"""
+
+    def __init__(
+        self, message: str, pydantic_validation_errors: ValidationError | None = None
+    ) -> None:
+        super().__init__(message)
+        self.pydantic_validation_errors = pydantic_validation_errors
+
+
 class LookylooCaptureSettingsError(CaptureSettingsError):
     pass
 
 
+def orjson_custom(obj: Any) -> Any:
+    if isinstance(obj, set):
+        return list(obj)
+    if isinstance(obj, BaseModelDump):
+        return obj.redis_dump()
+    if isinstance(obj, BaseModel):
+        return obj.model_dump(exclude_none=True)
+    return obj
+
+
 class BaseModelDump(BaseModel):
+    """
+    @model_validator(mode="before")
+    @classmethod
+    def empty_str_to_none(cls, data: Any) -> dict[str, Any] | Any:
+        if isinstance(data, dict):
+            # Make sure all the strings are stripped, and None if empty.
+            to_return: dict[str, Any] = {}
+            for k, v in data.items():
+                if isinstance(v, str):
+                    if v_stripped := v.strip():
+                        if v_stripped[0] in ["{", "[", b"{", b'[']:
+                            to_return[k] = from_json(v_stripped)
+                        else:
+                            to_return[k] = v_stripped
+                else:
+                    to_return[k] = v
+            return to_return
+        return data
+    """
+
     def redis_dump(self) -> Mapping[str | bytes, bytes | float | int | str]:
         """Redis/Valkey compatible dump"""
         mapping_capture: dict[str | bytes, bytes | float | int | str] = {}
@@ -81,21 +124,14 @@ class BaseModelDump(BaseModel):
                 continue
             if isinstance(value, bool):
                 mapping_capture[key] = 1 if value else 0
-            elif isinstance(value, BaseModelDump):
-                mapping_capture[key] = value.redis_dump()
-            elif isinstance(value, BaseModel):
-                mapping_capture[key] = value.model_dump_json()
-            elif isinstance(value, set):
+            elif isinstance(value, (BaseModel, BaseModelDump, set, list, dict)):
                 if value:
-                    mapping_capture[key] = orjson.dumps(list(value))
-            elif isinstance(value, (list, dict)):
-                if value:
-                    mapping_capture[key] = orjson.dumps(value)
+                    mapping_capture[key] = orjson.dumps(
+                        value, default=orjson_custom
+                    ).decode()
             elif isinstance(value, (bytes, float, int, str)):
-                if value in ["", b""]:
-                    # Just ignore
-                    pass
-                else:
+                # NOTE: ignore if empty str/bytes, keep for 0 / 0.0
+                if value not in ["", b""]:
                     mapping_capture[key] = value
             else:
                 raise UnexpectedTypeDump(f'Unexpected type "{type(value)}" for "{key}"')
@@ -128,6 +164,32 @@ class Cookie(BaseModelDump):
     secure: bool | None = None
     sameSite: Literal["Lax", "None", "Strict"] | None = None
     partitionKey: str | None = None
+
+    @model_validator(mode="after")
+    def check_complete_cookie(self) -> Cookie:
+        # a cookie must have a name, a value and either a URL OR a domain and a path
+        if not self.name or not self.value:
+            raise CookieError("A cookie requires a name and a value")
+        if not self.url and not (self.domain and self.path):
+            raise CookieError("A cookie requires either a url, or a domain and a path")
+        return self
+
+    @field_validator("expires", mode="before")
+    @classmethod
+    def load_expires(cls, expires: datetime | str | float | int | None) -> float | None:
+        if isinstance(expires, (float, int)):
+            return expires
+        if isinstance(expires, str):
+            try:
+                if _expires := dateparser.parse(expires):
+                    return _expires.timestamp()
+            except ValidationError as e:
+                raise CookieError(f"Invalid expire entry: {expires}.", e)
+        if isinstance(expires, datetime):
+            return expires.timestamp()
+
+        # When the expires value is something else, just make it 10 days from now
+        return (datetime.now() + timedelta(days=10)).timestamp()
 
 
 class CaptureSettings(BaseModelDump):
@@ -173,24 +235,6 @@ class CaptureSettings(BaseModelDump):
     priority: int = 0
     max_retries: int | None = None
     uuid: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def empty_str_to_none(cls, data: Any) -> dict[str, Any] | Any:
-        if isinstance(data, dict):
-            # Make sure all the strings are stripped, and None if empty.
-            to_return: dict[str, Any] = {}
-            for k, v in data.items():
-                if isinstance(v, str):
-                    if v_stripped := v.strip():
-                        if v_stripped[0] in ["{", "["]:
-                            to_return[k] = from_json(v_stripped)
-                        else:
-                            to_return[k] = v_stripped
-                else:
-                    to_return[k] = v
-            return to_return
-        return data
 
     @model_validator(mode="after")
     def check_capture_element(self) -> CaptureSettings:
@@ -256,16 +300,68 @@ class CaptureSettings(BaseModelDump):
             return proxy
         return None
 
+    @field_validator("viewport", mode="before")
+    @classmethod
+    def load_viewport_json(cls, viewport: Any) -> dict[str, Any] | None:
+        if not viewport:
+            return None
+        if isinstance(viewport, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                viewport = orjson.loads(viewport)
+            except orjson.JSONDecodeError:
+                # Viewport invalid, ignoring.
+                return None
+        return viewport
+
+    @field_validator("http_credentials", mode="before")
+    @classmethod
+    def load_http_credentials_json(cls, http_credentials: Any) -> dict[str, Any] | None:
+        if not http_credentials:
+            return None
+        if isinstance(http_credentials, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                http_credentials = orjson.loads(http_credentials)
+            except orjson.JSONDecodeError:
+                # Credentials invalid, ignoring.
+                return None
+        return http_credentials
+
+    @field_validator("geolocation", mode="before")
+    @classmethod
+    def load_geolocation_json(cls, geolocation: Any) -> dict[str, Any] | None:
+        if not geolocation:
+            return None
+        if isinstance(geolocation, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                geolocation = orjson.loads(geolocation)
+            except orjson.JSONDecodeError:
+                # Geolocation invalid, ignoring.
+                return None
+        return geolocation
+
     @field_validator("cookies", mode="before")
     @classmethod
-    def load_cookies_json(cls, cookies: Any) -> list[dict[str, Any]] | None:
+    def load_cookies_json(
+        cls, cookies: Any, info: ValidationInfo
+    ) -> list[dict[str, Any]] | None:
 
         def __prepare_cookie(cookie: dict[str, Any]) -> dict[str, str | float | bool]:
             if len(cookie) == 1:
                 # {'name': 'value'} => {'name': 'name', 'value': 'value'}
+                domain: str | None = None
+                if isinstance(info.context, dict):
+                    domain = info.context.get("domain", None)
                 name, value = cookie.popitem()
                 if name and value:
-                    cookie = {"name": name, "value": value}
+                    cookie = {
+                        "name": name,
+                        "value": value,
+                        "domain": domain,
+                        "path": "/",
+                    }
             if not cookie.get("name") or not cookie.get("value"):
                 # invalid cookie, ignoring
                 return {}
@@ -307,9 +403,8 @@ class CaptureSettings(BaseModelDump):
             # might be a json dump, try to load it and ignore otherwise
             try:
                 cookies = orjson.loads(cookies)
-            except orjson.JSONDecodeError as e:
+            except orjson.JSONDecodeError:
                 # Cookies are invalid, ignoring.
-                print(f"Broken cookie: {e}")
                 return None
         if isinstance(cookies, dict):
             # might be a single cookie in the format name: value, make it a list
@@ -319,7 +414,10 @@ class CaptureSettings(BaseModelDump):
             to_return = []
             for cookie in cookies:
                 if isinstance(cookie, dict):
-                    to_return.append(__prepare_cookie(cookie))
+                    if _c := __prepare_cookie(cookie):
+                        to_return.append(_c)
+                elif isinstance(cookie, Cookie):
+                    to_return.append(cookie)
             return to_return
         return None
 
@@ -423,6 +521,15 @@ class LookylooCaptureSettings(CaptureSettings):
                 raise LookylooCaptureSettingsError(
                     f"Unexpected type {type(v)} for cookies"
                 )
+
+            # In order to properly pass the cookies to playwright,
+            # each of then must have a name, a value and either a domain + path or a URL
+            # Name and value are mandatory, and we cannot auto-fill them.
+            # If the cookie doesn't have a domain + path OR a URL, we fill the domain
+            # with the hostname of the URL we try to capture and the path with "/"
+            if isinstance(cookies, dict):
+                # single cookie, most probably
+                cookies = [cookies]
 
             to_return: list[dict[str, str | bool]] = []
             for cookie in cookies:
