@@ -19,6 +19,7 @@ from pydantic import (
     ValidationError,
     ValidationInfo,
 )
+from pydantic_core import from_json
 
 
 def refang(line: str) -> str:
@@ -96,7 +97,6 @@ def orjson_custom(obj: Any) -> Any:
 
 
 class BaseModelDump(BaseModel):
-    """
     @model_validator(mode="before")
     @classmethod
     def empty_str_to_none(cls, data: Any) -> dict[str, Any] | Any:
@@ -114,7 +114,6 @@ class BaseModelDump(BaseModel):
                     to_return[k] = v
             return to_return
         return data
-    """
 
     def redis_dump(self) -> Mapping[str | bytes, bytes | float | int | str]:
         """Redis/Valkey compatible dump"""
