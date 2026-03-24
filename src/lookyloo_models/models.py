@@ -112,7 +112,9 @@ class BaseModelDump(BaseModel):
                             to_return[k] = v_stripped
                 else:
                     to_return[k] = v
+
             return to_return
+
         return data
 
     def redis_dump(self) -> Mapping[str | bytes, bytes | float | int | str]:
@@ -465,7 +467,7 @@ class AutoReportSettings(BaseModel):
     comment: str | None = None
 
 
-class MonitorCaptureSettings(BaseModel):
+class MonitorCaptureSettings(BaseModelDump):
     capture_settings: LookylooCaptureSettings | None = None
     frequency: str | None = None
     never_expire: bool = False
