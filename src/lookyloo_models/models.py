@@ -561,8 +561,8 @@ class LookylooCaptureSettings(CaptureSettings):
 class CompareSettings(BaseModelDump):
     """The settings that can be passed to the compare method on lookyloo side to filter out some differences"""
 
-    ressources_ignore_domains: set[str] = set()
-    ressources_ignore_regexes: set[str] = set()
+    ressources_ignore_domains: tuple[str, ...] = tuple()
+    ressources_ignore_regexes: tuple[str, ...] = tuple()
 
     ignore_ips: bool = False
 
