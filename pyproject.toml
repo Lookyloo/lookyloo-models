@@ -1,6 +1,6 @@
 [project]
 name = "lookyloo-models"
-version = "0.1.6"
+version = "0.1.7"
 description = "All the Pydantic models used across Lookyloo"
 readme = "README.md"
 authors = [
@@ -21,4 +21,5 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "ty>=0.0.24",
+    "deptry>=0.25",
 ]

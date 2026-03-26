@@ -7,7 +7,7 @@ import re
 from datetime import datetime, timedelta
 from io import BufferedIOBase
 from typing import Literal, Any, Mapping
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 import dateparser
 import orjson
@@ -97,6 +97,9 @@ def orjson_custom(obj: Any) -> Any:
 
 
 class BaseModelDump(BaseModel):
+
+    _domain_for_cookies: str | None = None
+
     @model_validator(mode="before")
     @classmethod
     def empty_str_to_none(cls, data: Any) -> dict[str, Any] | Any:
@@ -112,6 +115,21 @@ class BaseModelDump(BaseModel):
                             to_return[k] = v_stripped
                 else:
                     to_return[k] = v
+
+            if 'url' in to_return and to_return['url']:
+                # if we have the URL, we can initialize the domain that can then be
+                # used in the cookies, if needed.
+                url = to_return['url']
+                if isinstance(url, str):
+                    #  In case we get a defanged url at this stage.
+                    _url = refang(url)
+                    if not re.match("(http(s?)|data|file):", _url, re.I):
+                        # without a prefix, urlsplit fails.
+                        _url = f"http://{_url}"
+                    try:
+                        cls._domain_for_cookies = urlsplit(_url).hostname
+                    except Exception:
+                        pass
 
             return to_return
 
@@ -355,6 +373,8 @@ class CaptureSettings(BaseModelDump):
                 domain: str | None = None
                 if isinstance(info.context, dict):
                     domain = info.context.get("domain", None)
+                elif cls._domain_for_cookies:
+                    domain = cls._domain_for_cookies
                 name, value = cookie.popitem()
                 if name and value:
                     cookie = {
