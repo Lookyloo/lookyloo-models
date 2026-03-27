@@ -370,22 +370,23 @@ class CaptureSettings(BaseModelDump):
         def __prepare_cookie(cookie: dict[str, Any]) -> dict[str, str | float | bool]:
             if len(cookie) == 1:
                 # {'name': 'value'} => {'name': 'name', 'value': 'value'}
-                domain: str | None = None
-                if isinstance(info.context, dict):
-                    domain = info.context.get("domain", None)
-                elif cls._domain_for_cookies:
-                    domain = cls._domain_for_cookies
                 name, value = cookie.popitem()
                 if name and value:
                     cookie = {
                         "name": name,
                         "value": value,
-                        "domain": domain,
-                        "path": "/",
                     }
             if not cookie.get("name") or not cookie.get("value"):
                 # invalid cookie, ignoring
                 return {}
+
+            # set a domain and path on case we're missing it
+            if not cookie.get('url') or not (cookie.get('domain') and cookie.get('path')):
+                if isinstance(info.context, dict):
+                    cookie['domain'] = info.context.get("domain", None)
+                elif cls._domain_for_cookies:
+                    cookie['domain'] = cls._domain_for_cookies
+                cookie['path'] = '/'
 
             if "expires" in cookie and isinstance(cookie["expires"], str):
                 # Make it a float, as expected by Playwright
