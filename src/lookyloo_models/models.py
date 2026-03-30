@@ -19,7 +19,6 @@ from pydantic import (
     ValidationError,
     ValidationInfo,
 )
-from pydantic_core import from_json
 
 
 def refang(line: str) -> str:
@@ -97,7 +96,6 @@ def orjson_custom(obj: Any) -> Any:
 
 
 class BaseModelDump(BaseModel):
-
     _domain_for_cookies: str | None = None
 
     @model_validator(mode="before")
@@ -107,19 +105,16 @@ class BaseModelDump(BaseModel):
             # Make sure all the strings are stripped, and None if empty.
             to_return: dict[str, Any] = {}
             for k, v in data.items():
-                if isinstance(v, str):
+                if isinstance(v, (bytes, str)):
                     if v_stripped := v.strip():
-                        if v_stripped[0] in ["{", "[", b"{", b'[']:
-                            to_return[k] = from_json(v_stripped)
-                        else:
-                            to_return[k] = v_stripped
+                        to_return[k] = v_stripped
                 else:
                     to_return[k] = v
 
-            if 'url' in to_return and to_return['url']:
+            if "url" in to_return and to_return["url"]:
                 # if we have the URL, we can initialize the domain that can then be
                 # used in the cookies, if needed.
-                url = to_return['url']
+                url = to_return["url"]
                 if isinstance(url, str):
                     #  In case we get a defanged url at this stage.
                     _url = refang(url)
@@ -130,7 +125,6 @@ class BaseModelDump(BaseModel):
                         cls._domain_for_cookies = urlsplit(_url).hostname
                     except Exception:
                         pass
-
             return to_return
 
         return data
@@ -381,12 +375,14 @@ class CaptureSettings(BaseModelDump):
                 return {}
 
             # set a domain and path on case we're missing it
-            if not cookie.get('url') or not (cookie.get('domain') and cookie.get('path')):
+            if not cookie.get("url") or not (
+                cookie.get("domain") and cookie.get("path")
+            ):
                 if isinstance(info.context, dict):
-                    cookie['domain'] = info.context.get("domain", None)
+                    cookie["domain"] = info.context.get("domain", None)
                 elif cls._domain_for_cookies:
-                    cookie['domain'] = cls._domain_for_cookies
-                cookie['path'] = '/'
+                    cookie["domain"] = cls._domain_for_cookies
+                cookie["path"] = "/"
 
             if "expires" in cookie and isinstance(cookie["expires"], str):
                 # Make it a float, as expected by Playwright
