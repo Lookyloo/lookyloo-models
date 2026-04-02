@@ -237,6 +237,10 @@ class CaptureSettings(BaseModelDump):
     with_trusted_timestamps: bool = False
     final_wait: int = 5
 
+    # for interactive sessions
+    interactive: bool = False
+    interactive_ttl: int = 600
+
     # for automatic depth capture
     depth: int = 0
     rendered_hostname_only: bool = True  # Note: only used if depth is > 0
@@ -477,6 +481,15 @@ class CaptureSettings(BaseModelDump):
         elif isinstance(headers, dict):
             return headers
         return None
+
+    @field_validator("interactive_ttl", mode="after")
+    @classmethod
+    def check_interactive_ttl(cls, interactive_ttl: int) -> int:
+        if interactive_ttl < 1 or interactive_ttl > 600:
+            raise CaptureSettingsError(
+                f"interactive_ttl must be between 1 and 600 seconds, got {interactive_ttl}."
+            )
+        return interactive_ttl
 
 
 class AutoReportSettings(BaseModel):
