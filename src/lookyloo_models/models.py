@@ -10,6 +10,7 @@ from typing import Literal, Any, Mapping
 from urllib.parse import urlparse, urlsplit
 
 import dateparser
+import ua_parser
 import orjson
 
 from pydantic import (
@@ -211,7 +212,7 @@ class CaptureSettings(BaseModelDump):
     url: str | None = None
     document_name: str | None = None
     document: str | None = None
-    browser: Literal["chromium", "firefox", "webkit"] | None = None
+    browser: Literal["chromium", "firefox", "webkit"] = 'chromium'
     device_name: str | None = None
     user_agent: str | None = None
     proxy: str | dict[str, str] | None = None
@@ -255,6 +256,20 @@ class CaptureSettings(BaseModelDump):
 
     @model_validator(mode="after")
     def check_capture_element(self) -> CaptureSettings:
+        # set browser based on UA if not set yet
+        if not self.browser:
+            if self.user_agent:
+                parsed_string = ua_parser.parse(self.user_agent).with_defaults()
+                browser_family = parsed_string.user_agent.family.lower()
+                if browser_family.startswith('chrom'):
+                    self.browser = 'chromium'
+                elif browser_family.startswith('firefox'):
+                    self.browser = 'firefox'
+                else:
+                    self.browser = 'webkit'
+            else:
+                self.browser = 'chromium'
+
         if self.document_name and not self.document:
             raise CaptureSettingsError(
                 "You must provide a document if you provide a document name"
