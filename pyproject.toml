@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.10, <4"
 dependencies = [
     "dateparser>=1.4.0",
-    "orjson>=3.11.7",
+    "orjson>=3.11.8",
     "pydantic>=2.12.5",
     "ua-parser[regex]>=1.0.1",
 ]

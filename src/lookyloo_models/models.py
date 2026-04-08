@@ -212,7 +212,7 @@ class CaptureSettings(BaseModelDump):
     url: str | None = None
     document_name: str | None = None
     document: str | None = None
-    browser: Literal["chromium", "firefox", "webkit"] = 'chromium'
+    browser: Literal["chromium", "firefox", "webkit"] = "chromium"
     device_name: str | None = None
     user_agent: str | None = None
     proxy: str | dict[str, str] | None = None
@@ -261,14 +261,14 @@ class CaptureSettings(BaseModelDump):
             if self.user_agent:
                 parsed_string = ua_parser.parse(self.user_agent).with_defaults()
                 browser_family = parsed_string.user_agent.family.lower()
-                if browser_family.startswith('chrom'):
-                    self.browser = 'chromium'
-                elif browser_family.startswith('firefox'):
-                    self.browser = 'firefox'
+                if browser_family.startswith("chrom"):
+                    self.browser = "chromium"
+                elif browser_family.startswith("firefox"):
+                    self.browser = "firefox"
                 else:
-                    self.browser = 'webkit'
+                    self.browser = "webkit"
             else:
-                self.browser = 'chromium'
+                self.browser = "chromium"
 
         if self.document_name and not self.document:
             raise CaptureSettingsError(
