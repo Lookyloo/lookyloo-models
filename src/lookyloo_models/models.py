@@ -551,6 +551,24 @@ class LookylooCaptureSettings(CaptureSettings):
     categories: list[str] | None = None
     monitor_capture: MonitorCaptureSettings | None = None
 
+    @field_validator("auto_report", mode="before")
+    @classmethod
+    def load_auto_report(cls, v: Any) -> list[dict[str, Any]] | None:
+        # NOTE: we might have a string there. In which case it must be json loaded
+        if v:
+            if isinstance(v, (str, bytes)):
+                return orjson.loads(v)
+        return v
+
+    @field_validator("monitor_capture", mode="before")
+    @classmethod
+    def load_monitor_capture(cls, v: Any) -> list[dict[str, Any]] | None:
+        # NOTE: we might have a string there. In which case it must be json loaded
+        if v:
+            if isinstance(v, (str, bytes)):
+                return orjson.loads(v)
+        return v
+
     @field_validator("cookies", mode="before")
     @classmethod
     def load_cookies(cls, v: Any) -> list[dict[str, Any]] | None:
