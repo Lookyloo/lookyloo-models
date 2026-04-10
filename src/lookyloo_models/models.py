@@ -512,6 +512,15 @@ class AutoReportSettings(BaseModel):
     comment: str | None = None
 
 
+def _deserialize_json_blobs(blob: Any) -> list[Any] | dict[str, Any] | None:
+    if isinstance(blob, (str, bytes)):
+        if ds := orjson.loads(blob):
+            return ds
+        return None
+    else:
+        return blob
+
+
 class MonitorCaptureSettings(BaseModelDump):
     capture_settings: LookylooCaptureSettings | None = None
     frequency: str | None = None
@@ -524,6 +533,30 @@ class MonitorCaptureSettings(BaseModelDump):
 
     # This UUID is used when we trigger an update on the settings
     monitor_uuid: str | None = None
+
+    @field_validator("capture_settings", mode="before")
+    @classmethod
+    def load_capture_settings(cls, v: Any) -> list[dict[str, Any]] | dict[str, Any] | None:
+        # NOTE: we might have a string there. In which case it must be json loaded
+        if v:
+            return _deserialize_json_blobs(v)
+        return v
+
+    @field_validator("compare_settings", mode="before")
+    @classmethod
+    def load_compare_settings(cls, v: Any) -> list[dict[str, Any]] | dict[str, Any] | None:
+        # NOTE: we might have a string there. In which case it must be json loaded
+        if v:
+            return _deserialize_json_blobs(v)
+        return v
+
+    @field_validator("notification", mode="before")
+    @classmethod
+    def load_notification(cls, v: Any) -> list[dict[str, Any]] | dict[str, Any] | None:
+        # NOTE: we might have a string there. In which case it must be json loaded
+        if v:
+            return _deserialize_json_blobs(v)
+        return v
 
     @field_validator("expire_at", mode="before")
     @classmethod
@@ -553,20 +586,18 @@ class LookylooCaptureSettings(CaptureSettings):
 
     @field_validator("auto_report", mode="before")
     @classmethod
-    def load_auto_report(cls, v: Any) -> list[dict[str, Any]] | None:
+    def load_auto_report(cls, v: Any) -> list[dict[str, Any]] | dict[str, Any] | None:
         # NOTE: we might have a string there. In which case it must be json loaded
         if v:
-            if isinstance(v, (str, bytes)):
-                return orjson.loads(v)
+            return _deserialize_json_blobs(v)
         return v
 
     @field_validator("monitor_capture", mode="before")
     @classmethod
-    def load_monitor_capture(cls, v: Any) -> list[dict[str, Any]] | None:
+    def load_monitor_capture(cls, v: Any) -> list[dict[str, Any]] | dict[str, Any] | None:
         # NOTE: we might have a string there. In which case it must be json loaded
         if v:
-            if isinstance(v, (str, bytes)):
-                return orjson.loads(v)
+            return _deserialize_json_blobs(v)
         return v
 
     @field_validator("cookies", mode="before")
