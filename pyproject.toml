@@ -1,6 +1,6 @@
 [project]
 name = "lookyloo-models"
-version = "0.1.9"
+version = "0.2.0"
 description = "All the Pydantic models used across Lookyloo"
 readme = "README.md"
 authors = [
