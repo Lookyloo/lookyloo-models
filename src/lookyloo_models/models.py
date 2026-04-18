@@ -18,7 +18,6 @@ from pydantic import (
     field_validator,
     model_validator,
     ValidationError,
-    ValidationInfo,
 )
 
 
@@ -97,38 +96,24 @@ def orjson_custom(obj: Any) -> Any:
 
 
 class BaseModelDump(BaseModel):
-    _domain_for_cookies: str | None = None
-
+    # This validator is called in every children models *unless* it is overriden in the subclass
     @model_validator(mode="before")
-    @classmethod
     def empty_str_to_none(cls, data: Any) -> dict[str, Any] | Any:
         if isinstance(data, dict):
-            # Make sure all the strings are stripped, and None if empty.
-            to_return: dict[str, Any] = {}
-            for k, v in data.items():
-                if isinstance(v, (bytes, str)):
-                    if v_stripped := v.strip():
-                        to_return[k] = v_stripped
-                else:
-                    to_return[k] = v
-
-            if "url" in to_return and to_return["url"]:
-                # if we have the URL, we can initialize the domain that can then be
-                # used in the cookies, if needed.
-                url = to_return["url"]
-                if isinstance(url, str):
-                    #  In case we get a defanged url at this stage.
-                    _url = refang(url)
-                    if not re.match("(http(s?)|data|file):", _url, re.I):
-                        # without a prefix, urlsplit fails.
-                        _url = f"http://{_url}"
-                    try:
-                        cls._domain_for_cookies = urlsplit(_url).hostname
-                    except Exception:
-                        pass
-            return to_return
-
+            return cls._prepare_dict(data)
         return data
+
+    @staticmethod
+    def _prepare_dict(data: dict[str, Any]) -> dict[str, Any]:
+        # Make sure all the strings are stripped, and None if empty.
+        to_return: dict[str, Any] = {}
+        for k, v in data.items():
+            if isinstance(v, (bytes, str)):
+                if v_stripped := v.strip():
+                    to_return[k] = v_stripped
+            else:
+                to_return[k] = v
+        return to_return
 
     def redis_dump(self) -> Mapping[str | bytes, bytes | float | int | str]:
         """Redis/Valkey compatible dump"""
@@ -169,7 +154,7 @@ class HttpCredentialsSettings(BaseModel):
 
 class Cookie(BaseModelDump):
     name: str
-    value: str | None = ''
+    value: str = ''
     url: str | None = None
     domain: str | None = None
     path: str | None = None
@@ -185,6 +170,7 @@ class Cookie(BaseModelDump):
         if not self.name:
             raise CookieError("A cookie requires a name")
         if not self.value:
+            # we might have an empty string, and it would have been stripped
             self.value = ''
         if not self.url and not (self.domain and self.path):
             raise CookieError("A cookie requires either a url, or a domain and a path")
@@ -254,6 +240,31 @@ class CaptureSettings(BaseModelDump):
     priority: int = 0
     max_retries: int | None = None
     uuid: str | None = None
+
+    # override the before validator so we initialize cls._domain_for_cookies
+    @model_validator(mode="before")
+    @classmethod
+    def empty_str_to_none(cls, data: Any) -> dict[str, Any] | Any:
+        if isinstance(data, dict):
+            to_return = cls._prepare_dict(data)
+            # NOTE: maybe move that to the CaptureSettings class?
+            if "url" in to_return and to_return["url"]:
+                # if we have the URL, we can initialize the domain that can then be
+                # used in the cookies, if needed.
+                url = to_return["url"]
+                if isinstance(url, str):
+                    #  In case we get a defanged url at this stage.
+                    _url = refang(url)
+                    if not re.match("(http(s?)|data|file):", _url, re.I):
+                        # without a prefix, urlsplit fails.
+                        _url = f"http://{_url}"
+                    try:
+                        cls._domain_for_cookies = urlsplit(_url).hostname
+                    except Exception:
+                        pass
+            return to_return
+
+        return data
 
     @model_validator(mode="after")
     def check_capture_element(self) -> CaptureSettings:
@@ -377,9 +388,7 @@ class CaptureSettings(BaseModelDump):
 
     @field_validator("cookies", mode="before")
     @classmethod
-    def load_cookies_json(
-        cls, cookies: Any, info: ValidationInfo
-    ) -> list[dict[str, Any]] | None:
+    def load_cookies_json(cls, cookies: Any) -> list[dict[str, Any]] | None:
 
         def __prepare_cookie(cookie: dict[str, Any]) -> dict[str, str | float | bool]:
             if len(cookie) == 1:
@@ -398,9 +407,7 @@ class CaptureSettings(BaseModelDump):
             if not cookie.get("url") or not (
                 cookie.get("domain") and cookie.get("path")
             ):
-                if isinstance(info.context, dict):
-                    cookie["domain"] = info.context.get("domain", None)
-                elif cls._domain_for_cookies:
+                if cls._domain_for_cookies:
                     cookie["domain"] = cls._domain_for_cookies
                 cookie["path"] = "/"
 
