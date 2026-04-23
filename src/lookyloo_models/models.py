@@ -200,7 +200,7 @@ class CaptureSettings(BaseModelDump):
     url: str | None = None
     document_name: str | None = None
     document: str | None = None
-    browser: Literal["chromium", "firefox", "webkit"] | None = "chromium"
+    browser: Literal["chromium", "firefox", "webkit"] | None = None
     device_name: str | None = None
     user_agent: str | None = None
     proxy: str | dict[str, str] | None = None
