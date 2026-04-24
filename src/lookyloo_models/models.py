@@ -583,6 +583,14 @@ class LookylooCaptureSettings(CaptureSettings):
     categories: list[str] | None = None
     monitor_capture: MonitorCaptureSettings | None = None
 
+    @field_validator("categories", mode="before")
+    @classmethod
+    def load_categories(cls, v: Any) -> list[dict[str, Any]] | dict[str, Any] | None:
+        # NOTE: we might have a string there. In which case it must be json loaded
+        if v:
+            return _deserialize_json_blobs(v)
+        return v
+
     @field_validator("auto_report", mode="before")
     @classmethod
     def load_auto_report(cls, v: Any) -> list[dict[str, Any]] | dict[str, Any] | None:
