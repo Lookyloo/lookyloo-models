@@ -153,7 +153,7 @@ class HttpCredentialsSettings(BaseModel):
 
 
 class Cookie(BaseModelDump):
-    name: str
+    name: str = ''
     value: str = ''
     url: str | None = None
     domain: str | None = None
@@ -168,7 +168,8 @@ class Cookie(BaseModelDump):
     def check_complete_cookie(self) -> Cookie:
         # a cookie must have a name, a value and either a URL OR a domain and a path
         if not self.name:
-            raise CookieError("A cookie requires a name")
+            # we might have an empty string, and it would have been stripped
+            self.name = ''
         if not self.value:
             # we might have an empty string, and it would have been stripped
             self.value = ''
