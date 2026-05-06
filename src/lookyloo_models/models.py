@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from datetime import datetime, timedelta
@@ -96,6 +97,7 @@ def orjson_custom(obj: Any) -> Any:
 
 
 class BaseModelDump(BaseModel):
+
     # This validator is called in every children models *unless* it is overriden in the subclass
     @model_validator(mode="before")
     def empty_str_to_none(cls, data: Any) -> dict[str, Any] | Any:
@@ -493,18 +495,40 @@ class CaptureSettings(BaseModelDump):
             return None
         if isinstance(headers, str):
             # make it a dict
-            new_headers = {}
-            for header_line in headers.splitlines():
-                if header_line and ":" in header_line:
-                    splitted = header_line.split(":", 1)
-                    if splitted and len(splitted) == 2:
-                        header, h_value = splitted
-                        if header.strip() and h_value.strip():
-                            new_headers[header.strip()] = h_value.strip()
-            return new_headers
+            try:
+                # is it a json dump?
+                return orjson.loads(headers)
+            except orjson.JSONDecodeError:
+                # the headers are not a json dump, should be plaintext with newlines
+                new_headers = {}
+                for header_line in headers.splitlines():
+                    if header_line and ":" in header_line:
+                        splitted = header_line.split(":", 1)
+                        if splitted and len(splitted) == 2:
+                            header, h_value = splitted
+                            if header.strip() and h_value.strip():
+                                new_headers[header.strip()] = h_value.strip()
+                return new_headers
         elif isinstance(headers, dict):
             return headers
         return None
+        # new_headers is a dict, check the values
+
+    @field_validator("headers", mode="after")
+    @classmethod
+    def check_headers(cls, headers: dict[str, str]) -> dict[str, str]:
+        # Validate the new headers, only a subset of characters are accepted
+        # https://developers.cloudflare.com/rules/transform/request-header-modification/reference/header-format
+        to_return: dict[str, str] = {}
+        for name, value in headers.items():
+            if re.match(r'^[\w-]+$', name) is None:
+                logging.getLogger(cls.__name__).warning(f'Invalid HTTP Header name: {name}')
+                continue
+            if not value.isprintable():
+                logging.getLogger(cls.__name__).warning(f'Invalid HTTP Header value: {value}')
+                continue
+            to_return[name] = value
+        return to_return
 
 
 class AutoReportSettings(BaseModel):
