@@ -516,7 +516,9 @@ class CaptureSettings(BaseModelDump):
 
     @field_validator("headers", mode="after")
     @classmethod
-    def check_headers(cls, headers: dict[str, str]) -> dict[str, str]:
+    def check_headers(cls, headers: dict[str, str] | None) -> dict[str, str] | None:
+        if not headers:
+            return None
         # Validate the new headers, only a subset of characters are accepted
         # https://developers.cloudflare.com/rules/transform/request-header-modification/reference/header-format
         to_return: dict[str, str] = {}
