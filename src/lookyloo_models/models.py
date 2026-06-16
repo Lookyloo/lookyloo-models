@@ -495,6 +495,9 @@ class CaptureSettings(BaseModelDump):
             return None
         if isinstance(headers, str):
             # make it a dict
+            if headers.isdigit():
+                # invalid headers, should have been filtered out.
+                return None
             try:
                 # is it a json dump?
                 return orjson.loads(headers)
@@ -512,7 +515,6 @@ class CaptureSettings(BaseModelDump):
         elif isinstance(headers, dict):
             return headers
         return None
-        # new_headers is a dict, check the values
 
     @field_validator("headers", mode="after")
     @classmethod
