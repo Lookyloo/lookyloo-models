@@ -8,6 +8,7 @@ import re
 from datetime import datetime, timedelta
 from io import BufferedIOBase
 from typing import Literal, Any, Mapping
+from uuid import UUID
 from urllib.parse import urlparse, urlsplit
 
 import dateparser
@@ -327,6 +328,16 @@ class CaptureSettings(BaseModelDump):
             return document_name
         return None
 
+    @field_validator("uuid", mode="before")
+    @classmethod
+    def load_uuid(cls, uuid: Any) -> str | None:
+        if not uuid:
+            return None
+        try:
+            return str(UUID(uuid))
+        except Exception:
+            raise ValueError(f'Unable to validate input as UUID: {uuid}')
+
     @field_validator("browser", mode="before")
     @classmethod
     def load_browser(cls, browser: Any) -> str | None:
@@ -561,6 +572,16 @@ class MonitorCaptureSettings(BaseModelDump):
 
     # This UUID is used when we trigger an update on the settings
     monitor_uuid: str | None = None
+
+    @field_validator("monitor_uuid", mode="before")
+    @classmethod
+    def load_uuid(cls, uuid: Any) -> str | None:
+        if not uuid:
+            return None
+        try:
+            return str(UUID(uuid))
+        except Exception:
+            raise ValueError(f'Unable to validate input as UUID: {uuid}')
 
     @field_validator("capture_settings", mode="before")
     @classmethod
