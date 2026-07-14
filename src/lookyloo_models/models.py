@@ -625,6 +625,7 @@ class LookylooCaptureSettings(CaptureSettings):
     """The capture settings that can be passed to Lookyloo"""
 
     listing: bool = False
+    private: bool = False
     not_queued: bool = False
     auto_report: bool | AutoReportSettings | None = None  # {'email': , 'comment':}
     dnt: str | None = None  # Legacy, merged in the headers if present.
