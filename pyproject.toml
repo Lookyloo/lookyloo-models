@@ -13,6 +13,7 @@ dependencies = [
     "pydantic>=2.13",
     "ua-parser[regex]>=1.0",
 ]
+license = "BSD-3-Clause"
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]
