@@ -1,25 +1,22 @@
-#!/usr/bin/env python3
-
 from __future__ import annotations
 
 import logging
 import re
-
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from io import BufferedIOBase
-from typing import Literal, Any, Mapping
-from uuid import UUID
+from typing import Any, Literal
 from urllib.parse import urlparse, urlsplit
+from uuid import UUID
 
 import dateparser
-import ua_parser
 import orjson
-
+import ua_parser
 from pydantic import (
     BaseModel,
+    ValidationError,
     field_validator,
     model_validator,
-    ValidationError,
 )
 
 
@@ -32,7 +29,7 @@ def refang(line: str) -> str:
     """
     # Refang from https://bitbucket.org/johannestaas/defang/src/master/defang/__init__.py
     # to avoid the dependency.
-    ZERO_WIDTH_CHARACTER = "​"
+    ZERO_WIDTH_CHARACTER = "\u200b"
     if all(char == ZERO_WIDTH_CHARACTER for char in line[1::2]):
         return line[::2]
     dirty_line = re.sub(r"\((\.|dot)\)", ".", line, flags=re.IGNORECASE)
@@ -182,7 +179,7 @@ class Cookie(BaseModelDump):
 
     @field_validator("expires", mode="before")
     @classmethod
-    def load_expires(cls, expires: datetime | str | float | int | None) -> float | None:
+    def load_expires(cls, expires: datetime | str | float | None) -> float | None:
         if isinstance(expires, (float, int)):
             return expires
         if isinstance(expires, str):
@@ -195,7 +192,7 @@ class Cookie(BaseModelDump):
             return expires.timestamp()
 
         # When the expires value is something else, just make it 10 days from now
-        return (datetime.now() + timedelta(days=10)).timestamp()
+        return (datetime.now(tz=datetime.timezone.utc) + timedelta(days=10)).timestamp()
 
 
 class CaptureSettings(BaseModelDump):
@@ -252,20 +249,20 @@ class CaptureSettings(BaseModelDump):
         if isinstance(data, dict):
             to_return = cls._prepare_dict(data)
             # NOTE: maybe move that to the CaptureSettings class?
-            if "url" in to_return and to_return["url"]:
+            if to_return.get("url"):
                 # if we have the URL, we can initialize the domain that can then be
                 # used in the cookies, if needed.
                 url = to_return["url"]
                 if isinstance(url, str):
                     #  In case we get a defanged url at this stage.
                     _url = refang(url)
-                    if not re.match("(http(s?)|data|file):", _url, re.I):
+                    if not re.match("(http(s?)|data|file):", _url, re.IGNORECASE):
                         # without a prefix, urlsplit fails.
                         _url = f"http://{_url}"
                     try:
                         cls._domain_for_cookies = urlsplit(_url).hostname
-                    except Exception:
-                        pass
+                    except ValueError:
+                        logging.getLogger(cls.__name__).warning(f'No hostname in url: {_url}')
             return to_return
 
         return data
@@ -311,7 +308,7 @@ class CaptureSettings(BaseModelDump):
         if isinstance(url, str):
             #  In case we get a defanged url at this stage.
             _url = refang(url)
-            if re.match("(http(s?)|data|file):", _url, re.I):
+            if re.match("(http(s?)|data|file):", _url, re.IGNORECASE):
                 # if the URL starts with any of that, return immediately
                 return _url
             return f"http://{_url}"
@@ -335,7 +332,7 @@ class CaptureSettings(BaseModelDump):
             return None
         try:
             return str(UUID(uuid))
-        except Exception:
+        except TypeError:
             raise ValueError(f'Unable to validate input as UUID: {uuid}')
 
     @field_validator("browser", mode="before")
@@ -436,7 +433,7 @@ class CaptureSettings(BaseModelDump):
                     # And we don't really care.
                     # make it expire 10 days from now
                     cookie["expires"] = (
-                        datetime.now() + timedelta(days=10)
+                        datetime.now(tz=datetime.timezone.utc) + timedelta(days=10)
                     ).timestamp()
 
             if "sameSite" in cookie and isinstance(cookie["sameSite"], str):
@@ -580,7 +577,7 @@ class MonitorCaptureSettings(BaseModelDump):
             return None
         try:
             return str(UUID(uuid))
-        except Exception:
+        except TypeError:
             raise ValueError(f'Unable to validate input as UUID: {uuid}')
 
     @field_validator("capture_settings", mode="before")
@@ -614,10 +611,9 @@ class MonitorCaptureSettings(BaseModelDump):
             return None
         if isinstance(v, datetime):
             return v.timestamp()
-        elif isinstance(v, str):
+        elif isinstance(v, str) and (d := dateparser.parse(v)):
             # try to make it a timestamp
-            if d := dateparser.parse(v):
-                return d.timestamp()
+            return d.timestamp()
         return v
 
 
@@ -695,7 +691,7 @@ class LookylooCaptureSettings(CaptureSettings):
                         "name": cookie["Name raw"],
                         "httpOnly": cookie["HTTP only raw"] == "true",
                         "secure": cookie["Send for"] == "Encrypted connections only",
-                        "expires": (datetime.now() + timedelta(days=10)).strftime(
+                        "expires": (datetime.now(tz=datetime.timezone.utc) + timedelta(days=10)).strftime(
                             "%Y-%m-%dT%H:%M:%S"
                         )
                         + "Z",
@@ -713,8 +709,8 @@ class LookylooCaptureSettings(CaptureSettings):
 class CompareSettings(BaseModelDump):
     """The settings that can be passed to the compare method on lookyloo side to filter out some differences"""
 
-    ressources_ignore_domains: tuple[str, ...] = tuple()
-    ressources_ignore_regexes: tuple[str, ...] = tuple()
+    ressources_ignore_domains: tuple[str, ...] = ()
+    ressources_ignore_regexes: tuple[str, ...] = ()
 
     ignore_ips: bool = False
 
