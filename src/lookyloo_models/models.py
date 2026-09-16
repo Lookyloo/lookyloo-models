@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from io import BufferedIOBase
 from typing import Any, Literal
-from urllib.parse import urlparse, urlsplit
+from urllib.parse import urlparse, urlsplit, urlunsplit
 from uuid import UUID
 
 import dateparser
@@ -145,11 +145,77 @@ class ViewportSettings(BaseModel):
 class GeolocationSettings(BaseModel):
     latitude: float
     longitude: float
+    accuracy: float | None = None
 
 
 class HttpCredentialsSettings(BaseModel):
     username: str
     password: str
+    origin: str | None = None
+    send: Literal["always", "unauthorized"] | None = None
+
+
+class ProxySettings(BaseModel):
+    server: str
+    username: str | None = None
+    password: str | None = None
+    bypass: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def split_string(cls, data: Any) -> dict[str, Any] | Any:
+        if isinstance(data, str):
+            if data == 'force_tor':
+                # kinda legacy option, cannot remove it and it is replaced by lacus/lacuscore, not lookyloo
+                pass
+            else:
+                try:
+                    # we might be getting a json dump (string) of a dict
+                    return orjson.loads(data)
+                except orjson.JSONDecodeError:
+                    # not a dump, continue
+                    pass
+                # Just the proxy, possibly with username/password
+                splitted = urlsplit(data)
+                if splitted.username and splitted.password:
+                    data = {'username': splitted.username, 'password': splitted.password,
+                            'server': urlunsplit((splitted.scheme, f'{splitted.hostname}:{splitted.port}',
+                                                  splitted.path, splitted.query, splitted.fragment))}
+                else:
+                    data = {'server': data}
+        return data
+
+
+class Origin(BaseModelDump):
+    origin: str
+    localStorage: list[LocalStorage]
+    indexedDB: list[dict[str, Any]]
+    opfs: list[OpFS]
+
+
+class LocalStorage(BaseModel):
+    name: str
+    value: str
+
+
+class OpFS(BaseModelDump):
+    path: str
+    type: str
+    base64: str
+
+
+class Credential(BaseModel):
+    id: str
+    rpId: str
+    userHandle: str
+    privateKey: str
+    publicKey: str
+
+
+class StorageStateSettings(BaseModelDump):
+    cookies: list[Cookie]
+    origins: list[Origin]
+    credentials: list[Credential]
 
 
 class Cookie(BaseModelDump):
@@ -204,12 +270,10 @@ class CaptureSettings(BaseModelDump):
     browser: Literal["chromium", "firefox", "webkit"] | None = None
     device_name: str | None = None
     user_agent: str | None = None
-    proxy: str | dict[str, str] | None = None
+    proxy: ProxySettings | Literal['force_tor'] | None = None
     general_timeout_in_sec: int | None = None
     cookies: list[Cookie] | None = None
-    # NOTE: should be that, but StorageState doesn't define the indexeddb
-    # storage: StorageState | None = None
-    storage: dict[str, Any] | None = None
+    storage: StorageStateSettings | None = None
     headers: dict[str, str] | None = None
     http_credentials: HttpCredentialsSettings | None = None
     geolocation: GeolocationSettings | None = None
@@ -248,7 +312,6 @@ class CaptureSettings(BaseModelDump):
     def empty_str_to_none(cls, data: Any) -> dict[str, Any] | Any:
         if isinstance(data, dict):
             to_return = cls._prepare_dict(data)
-            # NOTE: maybe move that to the CaptureSettings class?
             if to_return.get("url"):
                 # if we have the URL, we can initialize the domain that can then be
                 # used in the cookies, if needed.
@@ -341,18 +404,6 @@ class CaptureSettings(BaseModelDump):
         if isinstance(browser, str) and browser in ["chromium", "firefox", "webkit"]:
             return browser
         # There are old captures where the browser is not a playwright browser name, so we ignore it.
-        return None
-
-    @field_validator("proxy", mode="before")
-    @classmethod
-    def load_proxy_json(cls, proxy: Any) -> str | dict[str, str] | None:
-        if not proxy:
-            return None
-        if isinstance(proxy, str):
-            # Just the proxy
-            return proxy
-        elif isinstance(proxy, dict):
-            return proxy
         return None
 
     @field_validator("viewport", mode="before")

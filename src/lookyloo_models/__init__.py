@@ -13,6 +13,8 @@ from .models import (
     NotificationSettings,
     UnexpectedTypeDump,
     ViewportSettings,
+    ProxySettings,
+    StorageStateSettings,
 )
 
 __all__ = [
@@ -30,4 +32,6 @@ __all__ = [
     "NotificationSettings",
     "UnexpectedTypeDump",
     "ViewportSettings",
+    "ProxySettings",
+    "StorageStateSettings",
 ]
