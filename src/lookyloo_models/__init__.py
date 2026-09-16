@@ -11,10 +11,10 @@ from .models import (
     LookylooModelsException,
     MonitorCaptureSettings,
     NotificationSettings,
-    UnexpectedTypeDump,
-    ViewportSettings,
     ProxySettings,
     StorageStateSettings,
+    UnexpectedTypeDump,
+    ViewportSettings,
 )
 
 __all__ = [
@@ -30,8 +30,8 @@ __all__ = [
     "LookylooModelsException",
     "MonitorCaptureSettings",
     "NotificationSettings",
-    "UnexpectedTypeDump",
-    "ViewportSettings",
     "ProxySettings",
     "StorageStateSettings",
+    "UnexpectedTypeDump",
+    "ViewportSettings",
 ]
