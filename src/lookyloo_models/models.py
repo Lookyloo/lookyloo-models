@@ -189,9 +189,9 @@ class ProxySettings(BaseModel):
 
 class Origin(BaseModelDump):
     origin: str
-    localStorage: list[LocalStorage]
-    indexedDB: list[dict[str, Any]]
-    opfs: list[OpFS]
+    localStorage: list[LocalStorage] | None
+    indexedDB: list[dict[str, Any]] | None
+    opfs: list[OpFS] | None
 
 
 class LocalStorage(BaseModel):
@@ -216,7 +216,7 @@ class Credential(BaseModel):
 class StorageStateSettings(BaseModelDump):
     cookies: list[Cookie]
     origins: list[Origin]
-    credentials: list[Credential]
+    credentials: list[Credential] | None
 
 
 class Cookie(BaseModelDump):
