@@ -18,6 +18,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic_extra_types.timezone_name import TimeZoneName
 
 
 def refang(line: str) -> str:
@@ -277,7 +278,7 @@ class CaptureSettings(BaseModelDump):
     headers: dict[str, str] | None = None
     http_credentials: HttpCredentialsSettings | None = None
     geolocation: GeolocationSettings | None = None
-    timezone_id: str | None = None
+    timezone_id: TimeZoneName | None = None
     locale: str | None = None
     color_scheme: Literal["dark", "light", "no-preference", "null"] | None = None
     java_script_enabled: bool = True

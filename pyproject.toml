@@ -11,6 +11,7 @@ dependencies = [
     "dateparser>=1.4",
     "orjson>=3.12",
     "pydantic>=2.13",
+    "pydantic-extra-types>=2.11.1",
     "ua-parser[regex]>=1.0",
 ]
 license = "BSD-3-Clause"
