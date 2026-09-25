@@ -189,9 +189,54 @@ class ProxySettings(BaseModel):
 
 class Origin(BaseModelDump):
     origin: str
-    localStorage: list[LocalStorage] | None = None
-    indexedDB: list[dict[str, Any]] | None = None
-    opfs: list[OpFS] | None = None
+    localStorage: list[LocalStorage] | None = []
+    indexedDB: list[dict[str, Any]] | None = []
+    opfs: list[OpFS] | None = []
+
+    @field_validator("localStorage", mode="before")
+    @classmethod
+    def load_local_storage_json(cls, local_storage: Any) -> dict[str, Any] | None:
+        if not local_storage:
+            return None
+        if isinstance(local_storage, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                local_storage = orjson.loads(local_storage)
+            except orjson.JSONDecodeError:
+                # local_storage invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid LocalStorage: {local_storage}')
+                return None
+        return local_storage
+
+    @field_validator("indexedDB", mode="before")
+    @classmethod
+    def load_indexed_db_json(cls, indexed_db: Any) -> dict[str, Any] | None:
+        if not indexed_db:
+            return None
+        if isinstance(indexed_db, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                indexed_db = orjson.loads(indexed_db)
+            except orjson.JSONDecodeError:
+                # indexed DB invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid IndexedDB: {indexed_db}')
+                return None
+        return indexed_db
+
+    @field_validator("opfs", mode="before")
+    @classmethod
+    def load_opfs_json(cls, opfs: Any) -> dict[str, Any] | None:
+        if not opfs:
+            return None
+        if isinstance(opfs, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                opfs = orjson.loads(opfs)
+            except orjson.JSONDecodeError:
+                # cookies invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid OPFS: {opfs}')
+                return None
+        return opfs
 
 
 class LocalStorage(BaseModel):
@@ -199,7 +244,7 @@ class LocalStorage(BaseModel):
     value: str
 
 
-class OpFS(BaseModelDump):
+class OpFS(BaseModel):
     path: str
     type: str
     base64: str
@@ -214,9 +259,54 @@ class Credential(BaseModel):
 
 
 class StorageStateSettings(BaseModelDump):
-    cookies: list[Cookie]
-    origins: list[Origin]
+    cookies: list[Cookie] | None = []
+    origins: list[Origin] | None = []
     credentials: list[Credential] | None = None
+
+    @field_validator("cookies", mode="before")
+    @classmethod
+    def load_cookies_json(cls, cookies: Any) -> dict[str, Any] | None:
+        if not cookies:
+            return None
+        if isinstance(cookies, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                cookies = orjson.loads(cookies)
+            except orjson.JSONDecodeError:
+                # cookies invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid cookies: {cookies}')
+                return None
+        return cookies
+
+    @field_validator("origins", mode="before")
+    @classmethod
+    def load_origins_json(cls, origins: Any) -> dict[str, Any] | None:
+        if not origins:
+            return None
+        if isinstance(origins, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                origins = orjson.loads(origins)
+            except orjson.JSONDecodeError:
+                # origins invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid origine: {origins}')
+                return None
+        return origins
+
+    @field_validator("credentials", mode="before")
+    @classmethod
+    def load_credentials_json(cls, credentials: Any) -> dict[str, Any] | None:
+        if not credentials:
+            return None
+        if isinstance(credentials, str):
+            # might be a json dump, try to load it and ignore otherwise
+            try:
+                credentials = orjson.loads(credentials)
+            except orjson.JSONDecodeError:
+                # cookies invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid credentials: {credentials}')
+                return None
+        return credentials
 
 
 class Cookie(BaseModelDump):
@@ -418,6 +508,7 @@ class CaptureSettings(BaseModelDump):
                 viewport = orjson.loads(viewport)
             except orjson.JSONDecodeError:
                 # Viewport invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid Viewport: {viewport}')
                 return None
         return viewport
 
@@ -432,6 +523,7 @@ class CaptureSettings(BaseModelDump):
                 http_credentials = orjson.loads(http_credentials)
             except orjson.JSONDecodeError:
                 # Credentials invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid HTTP Credentials: {http_credentials}')
                 return None
         return http_credentials
 
@@ -446,6 +538,7 @@ class CaptureSettings(BaseModelDump):
                 geolocation = orjson.loads(geolocation)
             except orjson.JSONDecodeError:
                 # Geolocation invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid geolocation: {geolocation}')
                 return None
         return geolocation
 
@@ -464,6 +557,7 @@ class CaptureSettings(BaseModelDump):
                     }
             if not cookie.get("name") or not cookie.get("value"):
                 # invalid cookie, ignoring
+                logging.getLogger(cls.__name__).warning(f'Invalid cookie: {cookie}')
                 return {}
 
             # set a domain and path on case we're missing it
@@ -513,8 +607,9 @@ class CaptureSettings(BaseModelDump):
                 cookies = orjson.loads(cookies)
             except orjson.JSONDecodeError:
                 # Cookies are invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid cookies: {cookies}')
                 return None
-        if isinstance(cookies, dict):
+        if isinstance(cookies, (dict, Cookie)):
             # might be a single cookie in the format name: value, make it a list
             cookies = [cookies]
         if isinstance(cookies, list):
@@ -543,8 +638,11 @@ class CaptureSettings(BaseModelDump):
                 storage = orjson.loads(storage)
             except orjson.JSONDecodeError:
                 # storage is invalid, ignoring.
+                logging.getLogger(cls.__name__).warning(f'Invalid storage: {storage}')
                 return None
-        if isinstance(storage, dict) and "cookies" in storage and "origins" in storage:
+        if isinstance(storage, dict):
+            return storage
+        if isinstance(storage, StorageStateSettings):
             return storage
         return None
 
