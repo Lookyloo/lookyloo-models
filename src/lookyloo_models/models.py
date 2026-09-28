@@ -555,8 +555,9 @@ class CaptureSettings(BaseModelDump):
                         "name": name,
                         "value": value,
                     }
-            if not cookie.get("name") or not cookie.get("value"):
+            if cookie.get("name") is None or cookie.get("value") is None:
                 # invalid cookie, ignoring
+                # NOTE: empty string *is* valid
                 logging.getLogger(cls.__name__).warning(f'Invalid cookie: {cookie}')
                 return {}
 
