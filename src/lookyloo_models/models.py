@@ -375,6 +375,7 @@ class CaptureSettings(BaseModelDump):
     viewport: ViewportSettings | None = None
     referer: str | None = None
     with_screenshot: bool = True
+    with_video: bool = False
     with_favicon: bool = True
     allow_tracking: bool = False
     headless: bool = True
