@@ -191,7 +191,19 @@ class Origin(BaseModelDump):
     origin: str
     localStorage: list[LocalStorage] | None = []
     indexedDB: list[dict[str, Any]] | None = []
-    opfs: list[OpFS] | None = []
+    opfs: list[OpFS] | None = None
+
+    @model_validator(mode="after")
+    def check_valid(self) -> Origin:
+        # OPFS is only possible in s secure context:
+        # https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Secure_Contexts
+        if self.opfs and not any(self.origin.startswith(b) for b in ['https://', 'file://', 'http://localhost']):
+            logging.getLogger(self.__class__.__name__).warning('Cannot have an opfs set in a non-secure context.')
+            self.opfs = None
+        if not self.opfs and isinstance(self.opfs, list):
+            # If we have an empty list, and are not in a secure context, playwright fails.
+            self.opfs = None
+        return self
 
     @field_validator("localStorage", mode="before")
     @classmethod
