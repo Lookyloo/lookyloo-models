@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Mapping
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from io import BufferedIOBase
 from typing import Any, Literal
 from urllib.parse import urlparse, urlsplit, urlunsplit
@@ -361,7 +361,7 @@ class Cookie(BaseModelDump):
             return expires.timestamp()
 
         # When the expires value is something else, just make it 10 days from now
-        return (datetime.now(tz=timezone.utc) + timedelta(days=10)).timestamp()
+        return (datetime.now(tz=UTC) + timedelta(days=10)).timestamp()
 
 
 class CaptureSettings(BaseModelDump):
@@ -593,7 +593,7 @@ class CaptureSettings(BaseModelDump):
                     # And we don't really care.
                     # make it expire 10 days from now
                     cookie["expires"] = (
-                        datetime.now(tz=timezone.utc) + timedelta(days=10)
+                        datetime.now(tz=UTC) + timedelta(days=10)
                     ).timestamp()
 
             if "sameSite" in cookie and isinstance(cookie["sameSite"], str):
@@ -855,7 +855,7 @@ class LookylooCaptureSettings(CaptureSettings):
                         "name": cookie["Name raw"],
                         "httpOnly": cookie["HTTP only raw"] == "true",
                         "secure": cookie["Send for"] == "Encrypted connections only",
-                        "expires": (datetime.now(tz=timezone.utc) + timedelta(days=10)).strftime(
+                        "expires": (datetime.now(tz=UTC) + timedelta(days=10)).strftime(
                             "%Y-%m-%dT%H:%M:%S"
                         )
                         + "Z",

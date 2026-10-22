@@ -6,12 +6,12 @@ readme = "README.md"
 authors = [
     { name = "Raphaël Vinot", email = "raphael.vinot@circl.lu" }
 ]
-requires-python = ">=3.10, <4"
+requires-python = ">=3.11, <4"
 dependencies = [
     "dateparser>=1.4",
-    "orjson>=3.12",
-    "pydantic>=2.13",
-    "pydantic-extra-types>=2.11.1",
+    "orjson>=3.13",
+    "pydantic>=2.14",
+    "pydantic-extra-types>=2.11",
     "ua-parser[regex]>=1.0",
 ]
 license = "BSD-3-Clause"
@@ -21,11 +21,11 @@ Repository = "https://github.com/Lookyloo/lookyloo-models"
 Issues = "https://github.com/Lookyloo/lookyloo-models/issues"
 
 [build-system]
-requires = ["uv_build>=0.12,<0.13"]
+requires = ["uv_build>=0.13,<0.14"]
 build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "ty>=0.0.69",
+    "ty>=0.0.90",
     "deptry>=0.25"
 ]
